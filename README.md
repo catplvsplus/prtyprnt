@@ -18,7 +18,6 @@ logger.info('Hello, World!');
 logger.debug('Hello, World!');
 logger.warn('Hello, World!');
 logger.error('Hello, World!');
-logger.fatal('Hello, World!');
 ```
 
 ```js
@@ -26,27 +25,23 @@ logger.fatal('Hello, World!');
 import { logger as defaultLogger, Logger, FileWriteStreamMode, Formatter } from 'prtyprnt';
 
 const logger = new Logger({
-    formatter: new Formatter(), // Formatter of log messages for console and write stream
-    parent: defaultLogger, // Parent logger, events will also be emitted to this logger
-    label: 'MyLogger', // Label of the logger
-    debugmode: {
-        enabled: true, // Enable debug mode
-        printMessage: true, // Print debug messages to console
-        writeToFile: true // Write debug messages to a file
-    },
-    writeStream: await Logger.createFileWriteStream({
-        mode: FileWriteStreamMode.Rename, // Mode when dealing with old log file
-        filename: './logs/latest.log', // Filename of the log file
-        renameFile: Utils.gzipCompressLog // Function to rename the log file
-    }), // Write stream to log to a file
-    objectInspectOptions: { colors: true } // Object inspect options
+    formatter: new Formatter(),                         // Formatter of log messages for console and write stream
+    parent: defaultLogger,                              // Parent logger, events will also be emitted to this logger
+    label: 'MyLogger',                                  // Label of the logger
+    objectInspectOptions: { colors: true },             // Object inspect options
+    logLevel: LogLevel.Info,                           // Log level of the console logger (default: LogLevel.Info)
+    writeLevel: LogLevel.Info,                          // Log level of the log file write stream (default: LogLevel.Info)
+    writeStream: await Logger.createFileWriteStream({   // Write stream to log to a file
+        mode: FileWriteStreamMode.Rename,               // - Mode when dealing with old log file
+        filename: './logs/latest.log',                  // - Filename of the log file
+        renameFile: Utils.gzipCompressLog               // - Function to rename the log file
+    }),
 })
 
 logger.info('Hello, World!');
 logger.debug('Hello, World!');
 logger.warn('Hello, World!');
 logger.error('Hello, World!');
-logger.fatal('Hello, World!');
 ```
 
 ```js
@@ -59,7 +54,6 @@ newLogger.info('Hello, World!');
 newLogger.debug('Hello, World!');
 newLogger.warn('Hello, World!');
 newLogger.error('Hello, World!');
-newLogger.fatal('Hello, World!');
 ```
 
 ```js
