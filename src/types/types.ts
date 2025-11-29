@@ -1,4 +1,3 @@
-
 export type DefaultEventMap = [never];
 export type AnyRest = [...args: any[]];
 export type Key<K, T> = T extends DefaultEventMap ? string | symbol : K | keyof T;

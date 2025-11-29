@@ -3,45 +3,21 @@ import { Formatter } from './Formatter.js';
 import { createWriteStream, WriteStream, type Stats } from 'node:fs';
 import { FileWriteStreamMode, LogLevel } from '../types/constants.js';
 import { type InspectOptions } from 'node:util';
-import inspector from 'node:inspector';
 import path from 'node:path';
 import { mkdir, readFile, stat, writeFile } from 'node:fs/promises';
 import type { BaseFormatter, FormatterFormatOptions } from './BaseFormatter.js';
 import type { Args, Key } from '../types/types.js';
 import { Utils } from './Utils.js';
 
-export interface LoggerWriteStreamOptions {
-    path: string;
-    mode: FileWriteStreamMode;
-    renameFile?: (file: string, stat: Stats) => any;
-    initialData?: string|((file: string) => string|Promise<string>);
-}
-
-export interface LoggerOptions {
-    formatter?: BaseFormatter;
-    parent?: Logger;
-    label?: string;
-    debugmode?: {
-        enabled?: boolean|(() => boolean);
-        printMessage?: boolean;
-        writeToFile?: boolean;
-    };
-    writeStream?: WriteStream;
-    objectInspectOptions?: InspectOptions;
-}
-
-export type LoggerEvents = {
-    [event in LogLevel]: [data: FormatterFormatOptions & { pretty: string; simple: string; }];
-};
-
-export class Logger extends EventEmitter<LoggerEvents> implements LoggerOptions {
+export class Logger extends EventEmitter<Logger.Events> implements Logger.Options {
     private _writeStream?: WriteStream;
 
     public formatter: BaseFormatter;
     public parent?: Logger;
     public label?: string;
-    public debugmode?: LoggerOptions['debugmode'];
     public objectInspectOptions?: InspectOptions;
+    public logLevel: LogLevel|null;
+    public writeLevel: LogLevel|null;
 
     get writeStream(): WriteStream | undefined {
         return this._writeStream ?? this.parent?.writeStream;
@@ -52,26 +28,21 @@ export class Logger extends EventEmitter<LoggerEvents> implements LoggerOptions 
         if (this.parent && !this.parent?.writeStream) this.parent.writeStream = value;
     }
 
-    get isDebugging(): boolean {
-        const explicitlyEnabled = typeof this.debugmode?.enabled === 'function' ? this.debugmode.enabled() : this.debugmode?.enabled;
-        return explicitlyEnabled ?? (!!inspector.url() || /--debug|--inspect/g.test(process.execArgv.join('')));
-    }
-
     get isWriteStreamClosed(): boolean {
         return !this.writeStream || this.writeStream.closed || this.writeStream.destroyed;
     }
 
-    constructor(options?: LoggerOptions) {
+    constructor(options?: Logger.Options) {
         super();
 
         this.formatter = options?.formatter ?? new Formatter();
         this.parent = options?.parent;
         this.label = options?.label;
-        this.debugmode = options?.debugmode ?? {};
         this.writeStream =options?.writeStream;
         this.objectInspectOptions = options?.objectInspectOptions;
+        this.logLevel = options?.logLevel ?? LogLevel.Info;
+        this.writeLevel = options?.writeLevel ?? options?.writeLevel !== null ? (options?.logLevel ?? LogLevel.Info) : null;
 
-        this.fatal = this.fatal.bind(this);
         this.error = this.error.bind(this);
         this.warning = this.warning.bind(this);
         this.info = this.info.bind(this);
@@ -85,34 +56,51 @@ export class Logger extends EventEmitter<LoggerEvents> implements LoggerOptions 
         this.clone = this.clone.bind(this);
     }
 
-    public fatal(...data: any[]): void {
-        return this.print(LogLevel.Fatal, ...data);
-    }
-
+    /**
+     * Output a log message at the error level
+     */
     public error(...data: any[]): void {
         return this.print(LogLevel.Error, ...data);
     }
 
+    /**
+     * Output a log message at the warning level
+     */
     public warning(...data: any[]): void {
         return this.print(LogLevel.Warn, ...data);
     }
 
+    /**
+     * Output a log message at the info level
+     */
     public info(...data: any[]): void {
         return this.print(LogLevel.Info, ...data);
     }
 
+    /**
+     * Output a log message at the debug level
+     */
     public debug(...data: any[]): void {
         return this.print(LogLevel.Debug, ...data);
     }
 
+    /**
+     * Output a log message at the info level
+     */
     public log(...data: any[]): void {
         return this.info(...data);
     }
 
+    /**
+     * Output a log message at the warning level
+     */
     public warn(...data: any[]): void {
         return this.warning(...data);
     }
 
+    /**
+     * Output a log message at the error level
+     */
     public err(...data: any[]): void {
         return this.error(...data);
     }
@@ -133,36 +121,29 @@ export class Logger extends EventEmitter<LoggerEvents> implements LoggerOptions 
             simple
         });
 
-        let writeToFile = true;
-
-        switch (level) {
-            case LogLevel.Fatal:
-            case LogLevel.Error:
-                console.error(pretty);
-                break;
-            case LogLevel.Warn:
-                console.warn(pretty);
-                break;
-            case LogLevel.Info:
-                console.info(pretty);
-                break;
-            case LogLevel.Debug:
-                if (!this.isDebugging) break;
-
-                if (this.debugmode?.printMessage !== false) {
+        if (this.logLevel && level >= this.logLevel) {
+            switch (level) {
+                case LogLevel.Debug:
                     console.debug(pretty);
-                }
-
-                writeToFile = this.debugmode?.writeToFile ?? true;
-                break;
+                    break;
+                case LogLevel.Info:
+                    console.info(pretty);
+                    break;
+                case LogLevel.Warn:
+                    console.warn(pretty);
+                    break;
+                case LogLevel.Error:
+                    console.error(pretty);
+                    break;
+            }
         }
 
-        if (!this.isWriteStreamClosed && writeToFile) {
+        if (!this.isWriteStreamClosed && this.writeLevel && level >= this.writeLevel) {
             this.writeStream?.write(`${simple}\n`, 'utf-8');
         }
     }
 
-    public async createFileWriteStream(options: LoggerWriteStreamOptions): Promise<this> {
+    public async createFileWriteStream(options: Logger.WriteStreamOptions): Promise<this> {
         if (!this.isWriteStreamClosed) {
             throw new Error('Write stream already created');
         }
@@ -183,7 +164,7 @@ export class Logger extends EventEmitter<LoggerEvents> implements LoggerOptions 
         return this;
     }
 
-    public clone(options?: LoggerOptions, inheritParent: boolean = true): Logger {
+    public clone(options?: Logger.Options, inheritParent: boolean = true): Logger {
         return new Logger({
             ...this.toJSON(),
             parent: inheritParent ? this.parent : this,
@@ -191,24 +172,25 @@ export class Logger extends EventEmitter<LoggerEvents> implements LoggerOptions 
         });
     }
 
-    public emit<K>(eventName: Key<K, LoggerEvents>, ...args: Args<K, LoggerEvents>): boolean {
+    public emit<K>(eventName: Key<K, Logger.Events>, ...args: Args<K, Logger.Events>): boolean {
         const result = super.emit<K>(eventName, ...args);
         if (this.parent) this.parent.emit(eventName, ...args);
         return result;
     }
 
-    public toJSON(): LoggerOptions {
+    public toJSON(): Logger.Options {
         return {
             formatter: this.formatter,
             parent: this.parent,
             label: this.label,
-            debugmode: this.debugmode,
             writeStream: this.writeStream,
-            objectInspectOptions: this.objectInspectOptions
+            objectInspectOptions: this.objectInspectOptions,
+            logLevel: this.logLevel,
+            writeLevel: this.writeLevel
         };
     }
 
-    public static async createFileWriteStream(options: LoggerWriteStreamOptions): Promise<WriteStream> {
+    public static async createFileWriteStream(options: Logger.WriteStreamOptions): Promise<WriteStream> {
         options.initialData ??= Utils.logDateHeader(new Date());
 
         const file = path.resolve(options.path);
@@ -253,5 +235,51 @@ export class Logger extends EventEmitter<LoggerEvents> implements LoggerOptions 
         if (options.initialData && !content) writeStream.write(initialData, 'utf-8');
 
         return writeStream;
+    }
+}
+
+export namespace Logger {
+    export interface Options {
+        /**
+         * The log formatter
+         */
+        formatter?: BaseFormatter;
+        /**
+         * The parent logger to inherit from
+         */
+        parent?: Logger;
+        /**
+         * The logger label
+         */
+        label?: string;
+        /**
+         * The log file write stream
+         */
+        writeStream?: WriteStream;
+        /**
+         * The object inspect options
+         */
+        objectInspectOptions?: InspectOptions;
+        /**
+         * The console log level
+         * @default LogLevel.Info
+         */
+        logLevel?: LogLevel|null;
+        /**
+         * The log file write stream log level
+         * @default LogLevel.Info
+         */
+        writeLevel?: LogLevel|null;
+    }
+
+    export interface WriteStreamOptions {
+        path: string;
+        mode: FileWriteStreamMode;
+        renameFile?: (file: string, stat: Stats) => any;
+        initialData?: string|((file: string) => string|Promise<string>);
+    }
+
+    export type Events = {
+        [event in LogLevel]: [data: FormatterFormatOptions & { pretty: string; simple: string; }];
     }
 }

@@ -1,11 +1,6 @@
 import { Logger } from './classes/Logger.js';
 
-export const logger = new Logger({
-    debugmode: {
-        printMessage: true,
-        writeToFile: true
-    }
-});
+export const logger = new Logger();
 
 export * from './classes/BaseFormatter.js';
 export * from './classes/Formatter.js';

@@ -63,9 +63,8 @@ export class Formatter extends BaseFormatter {
         let prefix: string = '';
 
         switch (level) {
-            case LogLevel.Fatal:
             case LogLevel.Error:
-                prefix += kleur.bgRed().bold().black(` ${level.toUpperCase()} `);
+                prefix += kleur.bgRed().bold().black(` ${LogLevel[level].toUpperCase()} `);
 
                 if (logger?.label) {
                     prefix += kleur.bgBlack().red().dim(` ${logger.label} `);
@@ -73,7 +72,7 @@ export class Formatter extends BaseFormatter {
 
                 break;
             case LogLevel.Warn:
-                prefix += kleur.bgYellow().bold().black(` ${level.toUpperCase()}  `);
+                prefix += kleur.bgYellow().bold().black(` ${LogLevel[level].toUpperCase()}  `);
 
                 if (logger?.label) {
                     prefix += kleur.bgBlack().yellow().dim(` ${logger.label} `);
@@ -81,7 +80,7 @@ export class Formatter extends BaseFormatter {
 
                 break;
             case LogLevel.Info:
-                prefix += kleur.bgCyan().bold().black(` ${level.toUpperCase()}  `);
+                prefix += kleur.bgCyan().bold().black(` ${LogLevel[level].toUpperCase()}  `);
 
                 if (logger?.label) {
                     prefix += kleur.bgBlack().cyan().dim(` ${logger.label} `);
@@ -89,7 +88,7 @@ export class Formatter extends BaseFormatter {
 
                 break;
             case LogLevel.Debug:
-                prefix += kleur.bgMagenta().bold().white(` ${level.toUpperCase()} `);
+                prefix += kleur.bgMagenta().bold().white(` ${LogLevel[level].toUpperCase()} `);
 
                 if (logger?.label) {
                     prefix += kleur.bgBlack().magenta().dim(` ${logger.label}`);
@@ -110,9 +109,9 @@ export class Formatter extends BaseFormatter {
         let prefix: string = `[${time}]`;
 
         if (logger?.label) {
-            prefix += ` [${logger.label}/${level.toUpperCase()}]`;
+            prefix += ` [${logger.label}/${LogLevel[level].toUpperCase()}]`;
         } else {
-            prefix += ` [${level.toUpperCase()}]`;
+            prefix += ` [${LogLevel[level].toUpperCase()}]`;
         }
 
         return `${prefix}: `;
