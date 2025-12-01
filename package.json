@@ -31,11 +31,11 @@
   "devDependencies": {
     "@reciple/utils": "^9.8.0",
     "@types/node": "^22.19.1",
-    "tsdown": "^0.17.0-beta.1"
+    "tsdown": "^0.17.0-beta.1",
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "ansi-regex": "^6.2.2",
-    "kleur": "^4.1.5",
-    "typescript": "^5.9.3"
+    "kleur": "^4.1.5"
   }
 }
